@@ -6,10 +6,10 @@ The purpose of this project is to create a pam module to open some cipher direct
 ### Creation of a file that will be converted into cipher container
 dd if=/dev/urandom bs=1M count={number} of=/home/{user}/cipher{user}
 
+#### Be careful below, the password that you give to the container MUST be the same as your user session password, indeed, PAM just pass your session password to the container at the opening of your session !
+
 ### Creation of a cipher container
 sudo cryptsetup luksFormat /home/{user}/cipher{user}
-
-#### Careful here, the password that you give to the container MUST be the same as your user session password, indeed, PAM just pass your session password to the container at the opening of your session !
 
 ### Opening of the cipher container
 sudo cryptsetup luksOpen /home/{user}/cipher{user} cipher{user}
