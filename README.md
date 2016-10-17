@@ -2,6 +2,12 @@
 Security project during my studies at Epitech.
 The purpose of this project is to create a pam module to open some cipher directories/partitions when a user open his session.
 
+## Add a new user {user}
+sudo adduser {user}
+
+## Download cryptsetup
+sudo apt-get install cryptsetup
+
 ## Add a new cipher of {number} MiB directory for {user}
 ### Creation of a file that will be converted into cipher container
 dd if=/dev/urandom bs=1M count={number} of=/home/{user}/cipher{user}
