@@ -37,10 +37,14 @@ sudo apt-get install libpam-mount
 
 ## Edit the /etc/security/pam_mount.conf.xml
 ### Add this line at the end of the file before the last tag </pam-mount>
+``
 <volume user="{user}" mountpoint="/home/{user}/cipher" path="/home/{user}/cipher{user}" fstype="crypt" />
+``
 
 ### If you want to add a container for all the users (a Shared container), modify this line as follow :
+``
 <volume user="*" mountpoint="/home/{user}/cipher" path="/home/{user}/cipher{user}" fstype="crypt" />
+``
 
 ### And add the password of each of your users in the keys of the container with the command :
 sudo cryptsetup luksAddKey /home/{user}/cipher{user}
