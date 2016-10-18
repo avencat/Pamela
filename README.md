@@ -52,7 +52,7 @@ mkdir /home/{user}/cipher
 ``
 
 ## Download your dev environment :
-### Emacs
+### OPTIONAL Emacs
 ``
 sudo apt-get install emacs
 ``
@@ -65,6 +65,11 @@ sudo apt-get install libpam0g-dev
 ### make
 ``
 sudo apt-get install make
+``
+
+### gcc
+``
+sudo apt-get install gcc
 ``
 
 ## NOW LET'S CODE TO MAKE A PAM MODULE !
