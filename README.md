@@ -25,7 +25,7 @@ dd if=/dev/urandom bs=1M count={number} of=/home/{user}/cipher{user}
 sudo cryptsetup luksFormat /home/{user}/cipher{user}
 ``
 
-### Add a key to your container so that another {user} can open it (to make a shared container for example) :
+### OPTIONAL Add a key to your container so that another {user} can open it (to make a shared container for example) :
 ``
 sudo cryptsetup luksAddKey /home/{user}/cipher{user}
 ``
