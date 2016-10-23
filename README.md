@@ -73,3 +73,27 @@ sudo apt-get install gcc
 ``
 
 ## NOW LET'S CODE TO MAKE A PAM MODULE !
+
+### Build the pam module
+You need sudo to be installed and your user added to the /etc/sudoers file
+```
+./build.sh
+```
+
+### Modify the /etc/pam.d/common-* files
+You need to add this line at the end of the file /etc/pam.d/common-auth :
+```
+auth  optional  pam_module.so
+```
+This at the end of /etc/pam.d/common-session :
+```
+session optional  pam_module.so
+```
+This at the end of /etc/pam.d/common-account :
+```
+account optional  pam_module.so
+```
+And this at the end of /etc/pam.d/password :
+```
+password  optional  pam_module.so
+```
