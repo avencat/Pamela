@@ -18,6 +18,7 @@
 #include <grp.h>
 #include <unistd.h>
 
+// Erase the memory at the end of pam use
 void  cleanup(pam_handle_t *pamh, void *data, int error_status)
 {
   char *xx;
@@ -32,25 +33,29 @@ void  cleanup(pam_handle_t *pamh, void *data, int error_status)
   UNUSED(error_status);
 }
 
+// Call when a user authenticate
 PAM_EXTERN int	pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
   int		retval;
   char		*pass;
   const char	*pUsername;
 
+  // Retrieve the username
   retval = pam_get_user(pamh, &pUsername, "Username: ");
   if (retval != PAM_SUCCESS) {
     return (retval);
   }
+  // Retrieve the password
   pam_get_item(pamh, PAM_AUTHTOK, (const void **)&pass);
+  // Save the password in memory so that you can access it when opening a session
   pam_set_data(pamh, "pam_module_pass", strdup(pass), &cleanup);
-  pam_set_data(pamh, "pam_module_user", strdup(pUsername), &cleanup);
   UNUSED(flags);
   UNUSED(argc);
   UNUSED(argv);
   return (PAM_SUCCESS);
 }
 
+// Set the module-specific credentials of the user
 PAM_EXTERN int	pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
   UNUSED(flags);
@@ -60,83 +65,54 @@ PAM_EXTERN int	pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const cha
   return (PAM_SUCCESS);
 }
 
+// Establishes the account's usability and the user's accessibility to the system
 PAM_EXTERN int  pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
-  UNUSED(flags);
+  UNUSED(pamh);
   UNUSED(argc);
   UNUSED(argv);
-  UNUSED(pamh);
+  UNUSED(flags);
   return (PAM_SUCCESS);
 }
 
+// Put the first letter of a word in capital
 char	*firstInCapital(char *str)
 {
   char	*ret;
 
   if (!str || !str[0] || (ret = malloc(strlen(str))) == NULL)
-    return (ret);
+    return (NULL);
   strcpy(ret, str);
-  if (ret[0] <= 'z' && ret[0] >= 'a')
+  if (ret && ret[0] && ret[0] <= 'z' && ret[0] >= 'a')
     ret[0] += 'A' - 'a';
   return (ret);
 }
 
-int		createRepos(char *user, char *pass, char *capUser)
-{
-  char		repo[256];
-  char		cmd[BUFSIZE];
-  uid_t		uid;
-  gid_t		gid;
-  struct passwd	*pwd;
-  struct group	*grp;
-  int		fd;
-
-  if (!(pwd = getpwnam(user))) {
-    perror("getpwnam failed:\n");
-    return (-1);
-  }
-  uid = pwd->pw_uid;
-  if (!(grp = getgrnam(user))) {
-    gid = 0;
-  } else {
-    gid = grp->gr_gid;
-  }
-  sprintf(repo, "/home/%s/cipher", user);
-  if (access(repo, 0)) {
-    mkdir(repo, 0700);
-    if (chown(repo, uid, gid) == -1) {
-      perror("CHOWN FAILED IN CREATEREPOS!\n");
-      return (-1);
-    }
-  }
-  sprintf(repo, "/home/%s/cipher%s", user, capUser);
-  if (access(repo, 0)) {
-    if ((fd = open(repo, O_RDWR | O_CREAT, S_IRUSR | S_IRGRP | S_IROTH)) == -1) {
-      perror("open failed :\n");
-      return (-1);;
-    }
-    close(fd);
-  }
-  sprintf(cmd, "echo \"%s\" | sudo cryptsetup luksFormat /home/%s/cipher%s && sudo cryptsetup luksOpen /home/%s/cipher%s cipher%s && sudo mkfs.ext4 /dev/mapper/cipher%s", pass, user, capUser, user, capUser, capUser, capUser);
-  return (0);
-}
-
+// Called whenever a session is opening
 PAM_EXTERN int  pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
   char  *pass;
   char  *user;
   char	*capUser;
   char  cmd[BUFSIZE];
+  int	retval;
 
-  pam_get_data(pamh, "pam_module_pass", (const void **)&pass);
-  pam_get_data(pamh, "pam_module_user", (const void **)&user);
-  capUser = firstInCapital(user);
-  if (createRepos(user, pass, capUser) == -1) {
-    if (capUser)
-      free(capUser);
-    return (PAM_SESSION_ERR);
+  // We retrieve the password so that we can open the LUKS container
+  if (pam_get_data(pamh, "pam_module_pass", (const void **)&pass) != PAM_SUCCESS)
+    pass = NULL;
+  // We retrieve the username
+  retval = pam_get_user(pamh, (const char **)&user, "Username: ");
+  if (retval != PAM_SUCCESS) {
+    return (retval);
   }
-  sprintf(cmd, "echo \"%s\" | sudo cryptsetup luksOpen /home/%s/cipher%s cipher%s && sudo mount /dev/mapper/cipher%s /home/%s/cipher ; echo \"%s\" | sudo cryptsetup luksOpen /home/shared/cipherShared cipherShared && sudo mount /dev/mapper/cipherShared /home/shared/cipher", pass, user, capUser, capUser, capUser, user, pass);
+  // We set capUser so that the first letter of the userName is in capital
+  capUser = firstInCapital(user);
+  // We open and mount the containers if we have the password and ask if we have not
+  if (pass) {
+    sprintf(cmd, "echo \"%s\" | sudo cryptsetup luksOpen /home/%s/cipher%s cipher%s && sudo mount /dev/mapper/cipher%s /home/%s/cipher ; echo \"%s\" | sudo cryptsetup luksOpen /home/shared/cipherShared cipherShared && sudo mount /dev/mapper/cipherShared /home/shared/cipher", pass, user, capUser, capUser, capUser, user, pass);
+  } else {
+    sprintf(cmd, "sudo cryptsetup luksOpen /home/%s/cipher%s cipher%s && sudo mount /dev/mapper/cipher%s /home/%s/cipher", user, capUser, capUser, capUser, user);
+  }
   system(cmd);
   if (capUser)
     free(capUser);
@@ -146,14 +122,22 @@ PAM_EXTERN int  pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, con
   return (PAM_SUCCESS);
 }
 
+// Called whenever a session is closing
 PAM_EXTERN int  pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
   char	*user;
   char	*capUser;
   char	cmd[BUFSIZE];
+  int	retval;
 
-  pam_get_data(pamh, "pam_module_user", (const void **)&user);
+  // We retrieve the userName
+  retval = pam_get_user(pamh, (const char **)&user, "Username: ");
+  if (retval != PAM_SUCCESS) {
+    return (retval);
+  }
+  // We put the userName with a capitalized first letter in capUser
   capUser = firstInCapital(user);
+  // We unmount and close the containers
   sprintf(cmd, "sudo umount /home/%s/cipher ; sudo cryptsetup luksClose cipher%s ; sudo umount /home/shared/cipher ; sudo cryptsetup luksClose cipherShared", user, capUser);
   system(cmd);
   if (capUser)
@@ -164,6 +148,7 @@ PAM_EXTERN int  pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, co
   return (PAM_SUCCESS);
 }
 
+// Function that add a key to a container whenever a password is changed
 void	changeContainerPass(char *user, char *pass)
 {
   char	cmd[BUFSIZE];
@@ -176,13 +161,19 @@ void	changeContainerPass(char *user, char *pass)
     free(capUser);
 }
 
+// Called whenever the password is changed
 PAM_EXTERN int  pam_sm_chauthtok(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
-  char *pUsername;
+  char		*pUsername;
   char		*pass;
+  int		retval;
 
-  pam_get_user(pamh, (const char **)&pUsername, "Username: ");
-  pam_get_item(pamh, PAM_AUTHTOK, (const void **)&pass);
+  // We get the userName
+  if ((retval = pam_get_user(pamh, (const char **)&pUsername, "Username: ")) != PAM_SUCESS)
+    return (retval);
+  // We get the password
+  if ((retval = pam_get_item(pamh, PAM_AUTHTOK, (const void **)&pass)) != PAM_SUCESS)
+    return (retval);
   if (pass)
     changeContainerPass(pUsername, pass);
   UNUSED(flags);
